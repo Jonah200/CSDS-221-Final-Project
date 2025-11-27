@@ -1,7 +1,5 @@
 import express from "express";
 import cors from "cors";
-import mongoose from "mongoose";
-import "dotenv/config";
 
 import authRoutes from "./routes/auth.js";
 import messageRoutes from "./routes/messages.js";
@@ -10,12 +8,32 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log("Connected to MongoDB"))
-    .catch(err => console.error("MongoDB connection error:", err));
+let clients = [];
+
+app.get("/events", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    res.flushHeaders();
+
+    const client = {
+        id: Date.now(),
+        res,
+    };
+    clients.push(client);
+    console.log("Client connected:", client.id);
+
+    req.on("close", () => {
+        clients = clients.filter(c => c.id !== client.id);
+    });
+});
+
+export function broadcastMessage(msg) {
+    clients.forEach(c => c.res.write(`data: ${JSON.stringify(msg)}\n\n`));
+}
 
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 
-const PORT = process.env.PORT || 5000
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+export default app;

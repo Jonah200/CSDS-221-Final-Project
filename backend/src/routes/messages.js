@@ -1,6 +1,7 @@
 import express from "express";
 import Message from "../models/Message.js";
 import jwt from "jsonwebtoken";
+import { broadcastMessage } from "../app.js";
 
 const router = express.Router();
 
@@ -26,7 +27,36 @@ router.post("/", auth, async (req, res) => {
     try {
         const message = new Message({ user: req.user, content });
         await message.save();
-        res.json(message);
+        const populated = await message.populate("user", "username");
+
+        broadcastMessage({ type: "new", message: populated });
+
+        res.json(populated);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+;
+
+router.delete("/:id", auth, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const message = await Message.findById(id);
+
+        if(!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        if(message.user.toString() !== req.user) {
+            return res.status(403).json({ message: "Unauthorized to delete this message" });
+        }
+
+        await message.deleteOne();
+
+        broadcastMessage({ type: "delete", messageId: id });
+
+        res.json({ message: "Message deleted", id });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
