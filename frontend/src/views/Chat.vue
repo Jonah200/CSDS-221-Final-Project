@@ -2,15 +2,48 @@
   <div class="chat-container">
     <h2>Chat Room</h2>
 
+    <!-- Messages -->
     <div class="messages">
-      <div v-for="msg in messages" :key="msg._id" class="message">
-        <strong>{{ msg.user.username }}:</strong> {{ msg.content }}
-        <button v-if="msg.user._id === userId" @click="deleteMessage(msg._id)">Delete</button>
-      </div>
+      <MessageCard v-for="msg in messages" :key="msg._id" :message="msg.content" :sender="msg.user.username"
+        :timestamp="msg.createdAt" :edited="msg.edited">
+
+        <template v-if="editingMessageId === msg._id" #default>
+          <v-text-field
+            v-model="editingText"
+            dense
+            outlined
+            hide-details
+          />
+        </template>
+
+        <!-- Scoped slot for buttons -->
+        <template #actions>
+          <v-btn v-if="msg.user._id === userId" variant="text" color="red" @click="deleteMessage(msg._id)">
+            <v-icon>mdi-delete</v-icon>
+          </v-btn>
+
+          <v-btn v-if="msg.user._id === userId && editingMessageId !== msg._id" variant="text" color="blue"
+            @click="startEdit(msg)">
+            <v-icon>mdi-pencil</v-icon>
+          </v-btn>
+
+          <v-btn v-if="msg.user._id === userId && editingMessageId === msg._id" variant="text" color="green"
+            @click="confirmEdit(msg)">
+            <v-icon>mdi-check</v-icon>
+          </v-btn>
+
+          <v-btn v-if="msg.user._id === userId && editingMessageId === msg._id" variant="text" color="blue"
+            @click="cancelEdit()">
+            <v-icon>mdi-cancel</v-icon>
+          </v-btn>
+
+        </template>
+      </MessageCard>
     </div>
 
+    <!-- Message Input -->
     <form @submit.prevent="sendMessage" class="message-form">
-      <input v-model="newMessage" placeholder="Type a message..." />
+      <textarea v-model="newMessage" placeholder="Type a message..." style="resize:none;" />
       <button type="submit">Send</button>
     </form>
   </div>
@@ -20,10 +53,14 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import api from "../api/axios.js";
 import { useRouter } from "vue-router";
+import MessageCard from "../components/MessageCard.vue";
+import toastr from "toastr";
 
 const messages = ref([]);
 const newMessage = ref("");
 const userId = ref(null);
+const editingMessageId = ref(null);
+const editingText = ref("");
 const router = useRouter();
 let eventSource = null;
 
@@ -43,6 +80,7 @@ const fetchMessages = async () => {
     const res = await api.get("/api/messages");
     messages.value = res.data;
   } catch (err) {
+    toastr.error("Could not fetch messages");
     console.error(err);
   }
 };
@@ -59,6 +97,7 @@ const sendMessage = async () => {
     );
     newMessage.value = "";
   } catch (err) {
+    toastr.error("Failed to send message");
     console.error(err);
   }
 };
@@ -69,10 +108,38 @@ const deleteMessage = async (id) => {
     await api.delete(`/api/messages/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    toastr.success("Message deleted");
   } catch (err) {
+    toastr.error("Failed to delete message");
     console.error(err);
   }
 };
+
+const startEdit = (msg) => {
+  editingMessageId.value = msg._id;
+  editingText.value = msg.content;
+}
+
+const cancelEdit = (msg) => {
+  editingMessageId.value = null;
+  editingText.value = "";
+}
+
+const confirmEdit = async (msg) => {
+  const newContent = editingText.value.trim();
+
+  if(!newContent) return;
+
+  try{
+    await api.put(`/api/messages/${msg._id}`, { content: newContent }, {
+      headers: { Authorization: `Bearer: ${token}` }
+    });
+    editingMessageId.value = null;
+    editingText.value = "";
+  } catch (err) {
+    toastr.error("Failed to edit message");
+  }
+}
 
 // SSE: subscribe to events
 const subscribeSSE = () => {
@@ -81,10 +148,18 @@ const subscribeSSE = () => {
   eventSource.onmessage = (event) => {
     const data = JSON.parse(event.data);
 
-    if (data.type === "new") {
-      messages.value.push(data.message);
-    } else if (data.type === "delete") {
-      messages.value = messages.value.filter((m) => m._id !== data.messageId);
+    switch (data.type) {
+      case "new":
+        messages.value.push(data.message);
+        break;
+      case "delete":
+        messages.value = messages.value.filter((m) => m._id !== data.messageId);
+        break;
+      case "edit":
+        messages.value = messages.value.map(m => m._id === data.message._id ? data.message : m);
+        break;
+      default:
+        console.error(`Invalid SSE Recieve ${data}`);
     }
   };
 };
@@ -100,10 +175,45 @@ onUnmounted(() => {
 </script>
 
 <style>
-.chat-container { max-width: 600px; margin: 50px auto; display:flex; flex-direction:column; gap:10px; }
-.messages { border:1px solid #ccc; padding:10px; height:400px; overflow-y:auto; display:flex; flex-direction:column; gap:5px; }
-.message { display:flex; justify-content: space-between; align-items:center; }
-.message-form { display:flex; gap:5px; }
-input { flex:1; padding:8px; font-size:16px; }
-button { padding:8px 12px; font-size:16px; cursor:pointer; }
+.chat-container {
+  width: 80rem;
+  margin: 50px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.messages {
+  border: 1px solid #ccc;
+  background-color: #303030;
+  padding: 10px;
+  height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.message {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.message-form {
+  display: flex;
+  gap: 5px;
+}
+
+textarea {
+  flex: 1;
+  padding: 8px;
+  font-size: 16px;
+}
+
+v-btn {
+  padding: 8px 12px;
+  font-size: 16px;
+  cursor: pointer;
+}
 </style>

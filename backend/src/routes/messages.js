@@ -28,7 +28,7 @@ router.post("/", auth, async (req, res) => {
         const message = new Message({ user: req.user, content });
         await message.save();
         const populated = await message.populate("user", "username");
-
+        
         broadcastMessage({ type: "new", message: populated });
 
         res.json(populated);
@@ -58,6 +58,30 @@ router.delete("/:id", auth, async (req, res) => {
 
         res.json({ message: "Message deleted", id });
     } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.put("/:id", auth, async (req, res) => {
+    const { id } = req.params;
+    const { content } = req.body;
+    try {
+        const message = await Message.findById(id);
+        if(!message){
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        if(message.user.toString() !== req.user){
+            return res.status(403).json({ message: "Not authorized to edit this message" });
+        }
+
+        const updateMessage = await Message.findOneAndUpdate({ _id: id }, { content: content, edited: true }, { new: true }).exec();
+        const fullNewMessage = await updateMessage.populate("user", "username");
+
+        broadcastMessage({ type: "edit", message: fullNewMessage });
+
+        res.json({ message: "Updated message", id: id });
+    } catch(err){
         res.status(500).json({ message: err.message });
     }
 });

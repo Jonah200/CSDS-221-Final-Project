@@ -7,7 +7,6 @@
       <button type="submit">Login</button>
     </form>
     <p>Don't have an account? <router-link to="/signup">Sign up</router-link></p>
-    <p v-if="error" style="color:red">{{ error }}</p>
   </div>
 </template>
 
@@ -15,23 +14,23 @@
 import { ref } from "vue";
 import api from "../api/axios.js";
 import { useRouter } from "vue-router";
+import toastr from 'toastr';
 
 const username = ref("");
 const password = ref("");
-const error = ref(null);
 const router = useRouter();
 
 const login = async () => {
-  error.value = null;
   try {
     const res = await api.post("/api/auth/login", {
       username: username.value,
       password: password.value,
     });
     localStorage.setItem("token", res.data.token);
+    toastr.success(`Welcome ${username.value}!`, "Logged In!")
     router.push("/chat");
   } catch (err) {
-    error.value = err.response?.data?.message || "Login failed";
+    toastr.error("Login failed");
   }
 };
 </script>
