@@ -119,8 +119,7 @@ const sendMessage = async () => {
 // Delete message
 const deleteMessage = async (id) => {
   try {
-    await api.delete(`/api/messages/${id}`, {
-    });
+    await api.delete(`/api/messages/${id}`);
     toastr.success("Message deleted");
   } catch (err) {
     toastr.error("Failed to delete message");
@@ -184,6 +183,7 @@ async function logout(){
     await api.post("/api/auth/logout");
     userId.value = null;
     localStorage.removeItem("userId");
+    localStorage.removeItem("accessToken");
   }catch(err){
     console.error("Logout error: ", err);
   } finally {

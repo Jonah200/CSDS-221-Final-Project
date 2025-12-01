@@ -72,6 +72,8 @@ router.put("/:id", auth, async (req, res) => {
         }
 
         if(message.user.toString() !== req.user){
+            console.log(message.user.toString());
+            console.log(req.user);
             return res.status(403).json({ message: "Not authorized to edit this message" });
         }
 

@@ -5,13 +5,13 @@ const api = axios.create({
   withCredentials: true,
 });
 
-let accessToken = null;
 
 export function setAccessToken(token) {
-    accessToken = token;
+    localStorage.setItem("accessToken", token);
 }
 
 api.interceptors.request.use((cfg) => {
+    let accessToken = localStorage.getItem("accesstoken");
     if(accessToken) cfg.headers.Authorization = `Bearer ${accessToken}`;
     return cfg;
 });
