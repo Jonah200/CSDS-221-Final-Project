@@ -38,7 +38,7 @@ export function broadcastMessage(msg) {
     clients.forEach(c => c.res.write(`data: ${JSON.stringify(msg)}\n\n`));
 }
 
-api.get("/api/health", (req, res) => {
+app.get("/api/health", (req, res) => {
     res.status(200);
 })
 
