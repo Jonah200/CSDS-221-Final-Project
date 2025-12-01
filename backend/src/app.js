@@ -16,6 +16,8 @@ app.use(cors({
 let clients = [];
 
 app.get("/events", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", process.env.CLIENT_ORIGIN);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
