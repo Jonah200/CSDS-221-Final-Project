@@ -1,11 +1,15 @@
 <template>
   <div class="chat-container">
     <h2>Chat Room</h2>
-
+    <div class="absolute top-2 right-2">
+      <v-btn variant="text" @click="logout">
+      <v-icon>mdi-logout</v-icon>
+      </v-btn>
+    </div>
     <!-- Messages -->
-    <div class="messages">
-      <MessageCard v-for="msg in messages" :key="msg._id" :message="msg.content" :sender="msg.user.username"
-        :timestamp="msg.createdAt" :edited="msg.edited">
+    <div class="messages" ref="messagesContainer">
+      <MessageCard v-for="(msg, index) in messages" :key="msg._id" :message="msg.content" :sender="msg.user.username"
+        :timestamp="msg.createdAt" :edited="msg.edited" :alt="index %2 === 0">
 
         <template v-if="editingMessageId === msg._id" #default>
           <v-text-field
@@ -18,10 +22,6 @@
 
         <!-- Scoped slot for buttons -->
         <template #actions>
-          <v-btn v-if="msg.user._id === userId" variant="text" color="red" @click="deleteMessage(msg._id)">
-            <v-icon>mdi-delete</v-icon>
-          </v-btn>
-
           <v-btn v-if="msg.user._id === userId && editingMessageId !== msg._id" variant="text" color="blue"
             @click="startEdit(msg)">
             <v-icon>mdi-pencil</v-icon>
@@ -37,20 +37,24 @@
             <v-icon>mdi-cancel</v-icon>
           </v-btn>
 
+          <v-btn v-if="msg.user._id === userId" variant="text" color="red" @click="deleteMessage(msg._id)">
+            <v-icon>mdi-delete</v-icon>
+          </v-btn>
+
         </template>
       </MessageCard>
     </div>
 
     <!-- Message Input -->
     <form @submit.prevent="sendMessage" class="message-form">
-      <textarea v-model="newMessage" placeholder="Type a message..." style="resize:none;" />
+      <textarea v-model="newMessage" placeholder="Type a message..." style="resize:none;" rows="2" />
       <button type="submit">Send</button>
     </form>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, nextTick } from "vue";
 import api from "../api/axios.js";
 import { useRouter } from "vue-router";
 import MessageCard from "../components/MessageCard.vue";
@@ -62,17 +66,28 @@ const userId = ref(null);
 const editingMessageId = ref(null);
 const editingText = ref("");
 const router = useRouter();
+const messagesContainer = ref(null);
+const autoScroll = ref(true);
 let eventSource = null;
 
-const token = localStorage.getItem("token");
-if (!token) router.push("/login");
-
+const savedUserId = localStorage.getItem("userId");
+if (!savedUserId) router.push("/login");
+userId.value = savedUserId;
 // Fetch current user ID from JWT
-try {
-  userId.value = JSON.parse(atob(token.split(".")[1])).id;
-} catch (err) {
-  console.error("Invalid token");
+
+const handleScroll = () => {
+  const el = messagesContainer.value;
+  if(!el) return;
+  const threshold = 50;
+  const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeigth;
+  autoScroll.value = distanceFromBottom < threshold;
 }
+
+const scrollToBottom = () => {
+  const el = messagesContainer.value;
+  if(!el) return;
+  el.scrollTop = el.scrollHeight;
+};
 
 // Fetch initial messages
 const fetchMessages = async () => {
@@ -93,7 +108,6 @@ const sendMessage = async () => {
     await api.post(
       "/api/messages",
       { content: newMessage.value },
-      { headers: { Authorization: `Bearer ${token}` } }
     );
     newMessage.value = "";
   } catch (err) {
@@ -106,7 +120,6 @@ const sendMessage = async () => {
 const deleteMessage = async (id) => {
   try {
     await api.delete(`/api/messages/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
     });
     toastr.success("Message deleted");
   } catch (err) {
@@ -132,10 +145,10 @@ const confirmEdit = async (msg) => {
 
   try{
     await api.put(`/api/messages/${msg._id}`, { content: newContent }, {
-      headers: { Authorization: `Bearer: ${token}` }
     });
     editingMessageId.value = null;
     editingText.value = "";
+    toastr.success("Message Edited");
   } catch (err) {
     toastr.error("Failed to edit message");
   }
@@ -145,12 +158,14 @@ const confirmEdit = async (msg) => {
 const subscribeSSE = () => {
   eventSource = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/events`);
 
-  eventSource.onmessage = (event) => {
+  eventSource.onmessage = async (event) => {
     const data = JSON.parse(event.data);
 
     switch (data.type) {
       case "new":
         messages.value.push(data.message);
+        await nextTick();
+        if(autoScroll.value) scrollToBottom();
         break;
       case "delete":
         messages.value = messages.value.filter((m) => m._id !== data.messageId);
@@ -164,9 +179,24 @@ const subscribeSSE = () => {
   };
 };
 
+async function logout(){
+  try{
+    await api.post("/api/auth/logout");
+    userId.value = null;
+    localStorage.removeItem("userId");
+  }catch(err){
+    console.error("Logout error: ", err);
+  } finally {
+    router.push("/login");
+  }
+}
+
 onMounted(() => {
   fetchMessages();
   subscribeSSE();
+  if(messagesContainer.value) {
+    messagesContainer.value.addEventListener("scroll", handleScroll);
+  }
 });
 
 onUnmounted(() => {
@@ -187,7 +217,7 @@ onUnmounted(() => {
   border: 1px solid #ccc;
   background-color: #303030;
   padding: 10px;
-  height: 400px;
+  height: 450px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;

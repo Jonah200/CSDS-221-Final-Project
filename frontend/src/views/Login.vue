@@ -26,7 +26,7 @@ const login = async () => {
       username: username.value,
       password: password.value,
     });
-    localStorage.setItem("token", res.data.token);
+    localStorage.setItem("userId", res.data.userId);
     toastr.success(`Welcome ${username.value}!`, "Logged In!")
     router.push("/chat");
   } catch (err) {

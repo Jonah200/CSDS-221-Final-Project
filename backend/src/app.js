@@ -1,12 +1,17 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 
 import authRoutes from "./routes/auth.js";
 import messageRoutes from "./routes/messages.js";
 
 const app = express();
-app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
+app.use(cors({
+    origin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+    credentials: true,
+}));
 
 let clients = [];
 
@@ -32,6 +37,10 @@ app.get("/events", (req, res) => {
 export function broadcastMessage(msg) {
     clients.forEach(c => c.res.write(`data: ${JSON.stringify(msg)}\n\n`));
 }
+
+api.get("/api/health", (req, res) => {
+    res.status(200);
+})
 
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);

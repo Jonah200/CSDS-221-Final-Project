@@ -1,6 +1,6 @@
 <template>
   <div class="flex w-full mb-2">
-    <div class="max-w-xs sm:max-w-md p-3 rounded-xl shadow-sm">
+    <div class="max-w-xs sm:max-w-md p-3 shadow-sm" :class="alt ? 'alt-bg' : 'normal-bg'">
       <!-- Sender (optional) -->
       <p class="text-xs font-semibold text-gray-600 mb-1 name">
         {{ sender }}
@@ -32,6 +32,7 @@ const props = defineProps({
   sender: { type: String, required: true },
   timestamp: { type: String, required: true },
   edited: { type: Boolean, default: false },
+  alt: { type: Boolean, required: true }
 });
 
 const formattedTime = computed(() => {
@@ -60,5 +61,13 @@ const formattedTime = computed(() => {
   margin-top: 6px;
   text-align: right;
   min-height: 20px;
+}
+
+.normal-bg {
+  background-color: #303030;
+}
+
+.alt-bg {
+  background-color: #252525;
 }
 </style>
